@@ -30,12 +30,13 @@ function find_recipe(root::AbstractString, name::AbstractString)
     # Always scan rather than probing an exact path: this both handles
     # case-insensitive matching and returns the on-disk casing of the path
     # even on case-insensitive filesystems.
+    name = stripsuffix(lowercase(name), "_jll")
     matches = String[]
     for shard in readdir(root; join=true)
         isdir(shard) || continue
         startswith(basename(shard), ".") && continue
         for dir in readdir(shard; join=true)
-            if lowercase(basename(dir)) == lowercase(name)
+            if lowercase(basename(dir)) == name
                 candidate = joinpath(dir, "build_tarballs.jl")
                 isfile(candidate) && push!(matches, candidate)
             end
