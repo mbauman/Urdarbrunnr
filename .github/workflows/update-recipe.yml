@@ -1,0 +1,54 @@
+name: Update recipe
+
+on:
+  workflow_dispatch:
+    inputs:
+      name:
+        description: "Yggdrasil recipe name (e.g. Zstd)"
+        required: true
+        type: string
+      version:
+        description: "New upstream version (e.g. 1.5.7)"
+        required: true
+        type: string
+      dry-run:
+        description: "Show the diff without pushing or opening a PR"
+        type: boolean
+        default: false
+
+# The default GITHUB_TOKEN is only used to check out this repository; all
+# writes happen against norn-bot's Yggdrasil fork via NORN_BOT_TOKEN.
+permissions:
+  contents: read
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.NORN_BOT_TOKEN }}
+      URDARBRUNNR_FORK: norn-bot/Yggdrasil
+      URDARBRUNNR_GIT_NAME: norn-bot
+      URDARBRUNNR_GIT_EMAIL: norn-bot@users.noreply.github.com
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1"
+
+      - uses: julia-actions/cache@v2
+
+      - name: Instantiate
+        run: julia --project -e 'using Pkg; Pkg.instantiate()'
+
+      - name: Authenticate git as norn-bot
+        # Routes git's https pushes through gh, which authenticates with
+        # GH_TOKEN — so the token never appears in remote URLs or argv.
+        run: gh auth setup-git
+
+      - name: Update ${{ inputs.name }} to v${{ inputs.version }}
+        env:
+          RECIPE_NAME: ${{ inputs.name }}
+          NEW_VERSION: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry-run && '--dry-run' || '' }}
+        run: julia --project bin/update.jl "$RECIPE_NAME" "$NEW_VERSION" $DRY_RUN
