@@ -47,6 +47,28 @@ function find_recipe(root::AbstractString, name::AbstractString)
 end
 
 """
+    validate_recipe(recipe_path, new_version)
+
+Smoke-test an updated recipe by running it with BinaryBuilder's
+`--meta-json` flag, which evaluates the entire script and emits the build
+metadata without building anything. Throws (with the script's output) if
+the recipe fails to run, or if the emitted metadata doesn't mention the
+new version.
+"""
+function validate_recipe(recipe_path::AbstractString, new_version::VersionNumber)
+    cmd = Cmd(`$(Base.julia_cmd()) --project=$(Base.active_project())
+               $(basename(recipe_path)) --meta-json`; dir=dirname(abspath(recipe_path)))
+    out = IOBuffer()
+    ok = success(pipeline(cmd; stdout=out, stderr=out))
+    text = String(take!(out))
+    ok || error("the updated $recipe_path is not valid; `--meta-json` failed with:\n$text")
+    # BinaryBuilder serializes the version with a leading "v" ("version":"v1.5.6")
+    occursin("\"v$new_version\"", text) || occursin("\"$new_version\"", text) ||
+        error("`--meta-json` output for the updated $recipe_path does not mention $new_version:\n$text")
+    return nothing
+end
+
+"""
     workflow_provenance() -> String
 
 When running inside a GitHub Actions workflow, a Markdown sentence linking
@@ -90,6 +112,14 @@ function create_update_pr(name::AbstractString, new_version::VersionNumber;
 
     @info "Updating $(recipe.name): $(recipe.version) → $new_version"
     write(recipe_path, update_recipe(recipe, new_version))
+
+    @info "Validating the updated recipe with --meta-json"
+    try
+        validate_recipe(recipe_path, new_version)
+    catch
+        git(root, "checkout", "--quiet", "--", ".")
+        rethrow()
+    end
 
     if dry_run
         run(pipeline(`git -C $root --no-pager diff`, stdout))

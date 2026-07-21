@@ -16,7 +16,7 @@ using Downloads: Downloads
 using SHA: sha256
 
 export Recipe, parse_recipe, find_recipe, render_url, update_recipe,
-       archive_sha256, resolve_git_tag, create_update_pr
+       archive_sha256, resolve_git_tag, validate_recipe, create_update_pr
 
 include("recipe.jl")
 include("sources.jl")

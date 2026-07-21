@@ -152,6 +152,27 @@ end
     @test occursin("tried: v1.1.0", err.msg)
 end
 
+@testset "validate_recipe" begin
+    # validate_recipe just runs `julia <script> --meta-json`, so stub scripts
+    # cover the plumbing without BinaryBuilder's load time
+    mktempdir() do dir
+        ok = joinpath(dir, "build_tarballs.jl")
+        json = "{\"name\":\"Foo\",\"version\":\"1.2.3\"}"
+        write(ok, "println($(repr(json)))")
+        @test validate_recipe(ok, v"1.2.3") === nothing
+        @test_throws "does not mention" validate_recipe(ok, v"1.2.4")
+
+        bad = joinpath(dir, "bad.jl")
+        write(bad, """error("boom")""")
+        err = try validate_recipe(bad, v"1.2.3"); nothing catch e e end
+        @test err isa ErrorException
+        @test occursin("boom", err.msg)
+    end
+
+    # And the real thing: run the Zstd fixture through BinaryBuilder itself
+    @test validate_recipe(joinpath(FIXTURES, "Z", "Zstd", "build_tarballs.jl"), v"1.5.6") === nothing
+end
+
 @testset "workflow_provenance" begin
     withenv("GITHUB_RUN_ID" => "12345", "GITHUB_REPOSITORY" => "mbauman/Urdarbrunnr",
             "GITHUB_ACTOR" => "mbauman", "GITHUB_SERVER_URL" => nothing) do
