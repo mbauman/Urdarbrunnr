@@ -154,6 +154,7 @@ function update_recipe(recipe::Recipe, new_version::VersionNumber;
         error("$(recipe.name): could not locate the `version = v\"...\"` line for rewriting")
     text = replace(recipe.text, version_re => SubstitutionString("\\1v\"$new_version\""); count=1)
 
+    changed = 0
     for src in recipe.sources
         if src.kind === :GitSource
             new_hash = git_commit(src.url, src.hash, recipe.version, new_version)
@@ -166,11 +167,17 @@ function update_recipe(recipe::Recipe, new_version::VersionNumber;
             end
             new_hash = archive_hash(new_url)
         end
+        new_hash == src.hash && continue
         old, new = "\"$(src.hash)\"", "\"$new_hash\""
         count_occurrences(text, old) == 1 ||
             error("$(recipe.name): expected exactly one occurrence of hash $(src.hash)")
         text = replace(text, old => new)
+        changed += 1
     end
+    changed > 0 || error("$(recipe.name): bumping to v$new_version changed no source. " *
+        "The version is likely baked into a source URL as a literal (e.g. \"…-$(recipe.version).tar.gz\") " *
+        "rather than interpolated as \"…-\$(version).tar.gz\"; Urdarbrunnr only updates recipes " *
+        "that interpolate the version into their sources.")
     return text
 end
 
