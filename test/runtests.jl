@@ -97,6 +97,23 @@ end
                         "0123456789abcdef0123456789abcdef01234567", v"2.3.4", v"2.4.0")]
 end
 
+@testset "update_recipe: errors when no source changes" begin
+    # The version is baked into the URL as a literal (as in Yggdrasil's
+    # LibRaw), so bumping `version` re-renders the same URL and touches no
+    # source. That is a spurious update and must error rather than propose
+    # a version-only PR (`--meta-json` would not catch it).
+    recipe = Urdarbrunnr.parse_recipe_text("""
+        name = "LibRaw"
+        version = v"0.20.2"
+        sources = [
+            ArchiveSource("https://www.libraw.org/data/LibRaw-0.20.2.tar.gz",
+                          "dc1b486c2003435733043e4e05273477326e51c3ea554c6864a4eafaff1004a6"),
+        ]
+        """)
+    fake_hash = url -> error("archive_hash should not be reached for a literal URL")
+    @test_throws "changed no source" update_recipe(recipe, v"0.22.1"; archive_hash=fake_hash)
+end
+
 @testset "parse_ls_remote" begin
     tags = Urdarbrunnr.parse_ls_remote("""
         $("1"^40)\trefs/tags/v1.5.6
